@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runIngestion } from '@/scrapers/ingest';
+import { positiveInt } from '@/scrapers/core';
 
 export const dynamic = 'force-dynamic';
 // Vercel caps this by plan. The run also self-limits with a time budget, so a
@@ -33,16 +34,18 @@ async function handle(req: Request) {
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
 
-  const batch = Number(url.searchParams.get('limit') ?? process.env.INGEST_BATCH ?? 10);
+  const batch =
+    positiveInt(url.searchParams.get('limit') ?? undefined, 0) ||
+    positiveInt(process.env.INGEST_BATCH, 10);
   // Retire listings not seen for a week. The crawl cycle is a few hours, so a
   // listing missing for seven days is genuinely gone from the source.
-  const staleDays = Number(url.searchParams.get('stale') ?? 7);
+  const staleDays = positiveInt(url.searchParams.get('stale') ?? undefined, 7);
 
   try {
     const result = await runIngestion({
-      limit: Number.isFinite(batch) && batch > 0 ? batch : 10,
+      limit: batch,
       timeBudgetMs: (maxDuration - 12) * 1000,
-      staleDays: Number.isFinite(staleDays) ? staleDays : 7,
+      staleDays,
       forceSeed: url.searchParams.get('seed') === '1',
     });
 

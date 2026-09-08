@@ -116,6 +116,19 @@ export function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Read a positive integer from the environment.
+ *
+ * Hosting platforms hand over a variable that exists but has no value as an
+ * empty string rather than leaving it undefined, and `'' ?? fallback` keeps the
+ * empty string, which `Number()` then turns into 0. That silently reduced the
+ * crawler's worker count to zero: no work done, no error raised.
+ */
+export function positiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt((value ?? '').trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 /** Run tasks with a bounded number in flight. */
 export async function pool<T, R>(
   items: T[],

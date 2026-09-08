@@ -7,7 +7,7 @@
  * every source stays fresh without any single invocation running long.
  */
 import { prisma } from '../lib/db';
-import { pool, type Adapter, type RawListing } from './core';
+import { pool, positiveInt, type Adapter, type RawListing } from './core';
 import { greenhouse, lever, ashby, workable, smartrecruiters, recruitee } from './adapters/ats';
 import { grantsgov, jsonld, curated } from './adapters/open';
 import { fromList } from '../lib/utils';
@@ -160,7 +160,7 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     kind,
     staleDays = 0,
     forceSeed = false,
-    concurrency = Number(process.env.INGEST_CONCURRENCY ?? 4),
+    concurrency = positiveInt(process.env.INGEST_CONCURRENCY, 4),
     onLog = () => {},
   } = options;
 
