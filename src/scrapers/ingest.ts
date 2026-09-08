@@ -37,10 +37,16 @@ export interface IngestOptions {
   /** Mark listings not seen in this many days as inactive. 0 disables. */
   staleDays?: number;
   concurrency?: number;
+  /** Re-seed the crawl list even when sources already exist. */
+  forceSeed?: boolean;
   onLog?: (line: string) => void;
 }
 
 export interface IngestResult {
+  /** Diagnostics: what the crawl list looked like before and after. */
+  sourcesTotal: number;
+  sourcesEnabled: number;
+  sourcesSeeded: number;
   sourcesRun: number;
   sourcesFailed: number;
   listingsUpserted: number;
@@ -153,15 +159,18 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     only,
     kind,
     staleDays = 0,
+    forceSeed = false,
     concurrency = Number(process.env.INGEST_CONCURRENCY ?? 4),
     onLog = () => {},
   } = options;
 
   // A fresh deployment has tables but no crawl list. Seed it on the first run
   // so the catalogue fills itself without anyone running a command by hand.
-  if ((await prisma.source.count()) === 0) {
-    const n = await seedSources();
-    onLog(`  seeded ${n} sources on first run`);
+  let seeded = 0;
+  const sourcesBefore = await prisma.source.count();
+  if (sourcesBefore === 0 || forceSeed) {
+    seeded = await seedSources();
+    onLog(`  seeded ${seeded} sources`);
   }
 
   const sources = await prisma.source.findMany({
@@ -254,7 +263,13 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
   const byCategory: Record<string, number> = {};
   for (const row of grouped) byCategory[row.category] = row._count._all;
 
+  const sourcesTotal = await prisma.source.count();
+  const sourcesEnabled = await prisma.source.count({ where: { enabled: true } });
+
   return {
+    sourcesTotal,
+    sourcesEnabled,
+    sourcesSeeded: seeded,
     sourcesRun,
     sourcesFailed,
     listingsUpserted,

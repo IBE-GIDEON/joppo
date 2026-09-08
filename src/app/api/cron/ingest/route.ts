@@ -43,17 +43,26 @@ async function handle(req: Request) {
       limit: Number.isFinite(batch) && batch > 0 ? batch : 10,
       timeBudgetMs: (maxDuration - 12) * 1000,
       staleDays: Number.isFinite(staleDays) ? staleDays : 7,
+      forceSeed: url.searchParams.get('seed') === '1',
     });
 
     return NextResponse.json(
       {
         ok: true,
+        sources: {
+          total: result.sourcesTotal,
+          enabled: result.sourcesEnabled,
+          seeded: result.sourcesSeeded,
+        },
         crawled: result.sourcesRun,
         failed: result.sourcesFailed,
         upserted: result.listingsUpserted,
         retired: result.retired,
         seconds: Math.round(result.durationMs / 1000),
         catalogue: result.totals,
+        // Surfaces per-source failures so a broken adapter is visible from the
+        // response instead of only in the platform logs.
+        errors: result.perSource.filter((s) => s.error).slice(0, 5),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
