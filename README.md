@@ -170,18 +170,24 @@ as a query parameter:
 curl "https://your-domain/api/cron/ingest?token=$CRON_SECRET"
 ```
 
-**On Vercel's Hobby plan, cron jobs fire only once a day.** That is not enough
-for a catalogue the pricing page says is refreshed hourly. Two options:
+**Vercel's Hobby plan allows a cron job to fire only once a day**, which is why
+`vercel.json` is set to a daily 04:00 run. That alone is not enough for a
+catalogue the pricing page says refreshes hourly, so the hourly work is done by
+GitHub instead and the Vercel job stays as a daily safety net.
 
-- Upgrade to Vercel Pro, and `vercel.json` handles it.
-- Stay on Hobby and let GitHub run it. `.github/workflows/crawl.yml` already
-  does this hourly for free. Add two repository secrets under Settings, Secrets
-  and variables, Actions: `JOPPO_URL` (your domain) and `CRON_SECRET` (the same
-  value as in Vercel). The workflow fails loudly in the Actions tab if a crawl
-  breaks, and you can trigger one by hand from there too.
+`.github/workflows/crawl.yml` calls the same endpoint every hour, free, with no
+frequency cap. Add two repository secrets under Settings, Secrets and variables,
+Actions:
 
-GitHub disables scheduled workflows on repositories with no activity for 60
-days, so push something occasionally or use the Vercel Pro route.
+- `JOPPO_URL` — your domain, for example `https://joppo.vercel.app`
+- `CRON_SECRET` — the same value you set in Vercel
+
+The workflow fails visibly in the Actions tab if a crawl breaks, and you can
+trigger one by hand from there.
+
+GitHub disables scheduled workflows on repositories with no pushes for 60 days.
+If you would rather have one system doing everything, Vercel Pro lifts the cron
+limit and you can delete the workflow and set `vercel.json` back to `17 * * * *`.
 
 ### Crawl commands
 
