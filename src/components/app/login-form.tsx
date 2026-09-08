@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { Loader2, Mail } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function LoginForm({
@@ -12,74 +12,37 @@ export function LoginForm({
   googleEnabled: boolean;
   plan?: string;
 }) {
-  const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState<'google' | 'email' | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const callbackUrl = plan ? `/onboarding?plan=${encodeURIComponent(plan)}` : '/onboarding';
 
-  async function onEmail(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setBusy('email');
-    await signIn('email', { email: email.trim(), callbackUrl });
-    setBusy(null);
+  if (!googleEnabled) {
+    return (
+      <p className="mt-7 rounded-[6px] border border-amber-400/20 bg-amber-400/[0.07] p-3.5 text-[12.5px] leading-relaxed text-amber-200/80">
+        Sign-in is not configured on this deployment. Set GOOGLE_CLIENT_ID and
+        GOOGLE_CLIENT_SECRET in the environment.
+      </p>
+    );
   }
 
   return (
-    <div className="mt-7 space-y-3">
-      {googleEnabled ? (
-        <>
-          <Button
-            variant="secondary"
-            size="lg"
-            className="w-full"
-            disabled={busy !== null}
-            onClick={() => {
-              setBusy('google');
-              void signIn('google', { callbackUrl });
-            }}
-          >
-            {busy === 'google' ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <GoogleGlyph />
-            )}
-            Continue with Google
-          </Button>
+    <div className="mt-7">
+      <Button
+        size="lg"
+        className="w-full"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void signIn('google', { callbackUrl });
+        }}
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <GoogleGlyph />}
+        Continue with Google
+      </Button>
 
-          <div className="flex items-center gap-3 py-1">
-            <span className="h-px flex-1 bg-white/[0.08]" />
-            <span className="text-[11px] uppercase tracking-wider text-white/25">or</span>
-            <span className="h-px flex-1 bg-white/[0.08]" />
-          </div>
-        </>
-      ) : null}
-
-      <form onSubmit={onEmail} className="space-y-3">
-        <div className="relative">
-          <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/25" />
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="field h-12 w-full pl-10 pr-3.5 text-[14px]"
-          />
-        </div>
-        <Button type="submit" size="lg" className="w-full" disabled={busy !== null}>
-          {busy === 'email' ? <Loader2 className="size-4 animate-spin" /> : null}
-          Email me a sign-in link
-        </Button>
-      </form>
-
-      {!googleEnabled ? (
-        <p className="pt-1 text-[11.5px] leading-relaxed text-white/25">
-          Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are
-          set in your environment file.
-        </p>
-      ) : null}
+      <p className="mt-3.5 text-center text-[11.5px] leading-relaxed text-white/25">
+        We only ever read your name and email address.
+      </p>
     </div>
   );
 }

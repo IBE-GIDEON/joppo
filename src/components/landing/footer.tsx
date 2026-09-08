@@ -38,11 +38,13 @@ export function Footer() {
         <div className="rule" />
         <div className="flex flex-col items-center justify-between gap-6 py-8 sm:flex-row">
           <Wordmark />
-          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             {[
-              { href: '#categories', label: 'Categories' },
               { href: '#pricing', label: 'Pricing' },
               { href: '#faq', label: 'FAQ' },
+              { href: '/terms', label: 'Terms' },
+              { href: '/privacy', label: 'Privacy' },
+              { href: '/refunds', label: 'Refunds' },
               { href: '/login', label: 'Sign in' },
             ].map((l) => (
               <a
