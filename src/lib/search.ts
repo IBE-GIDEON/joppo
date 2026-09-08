@@ -41,15 +41,33 @@ function roleScoped(condition: Prisma.ListingWhereInput): Prisma.ListingWhereInp
   return { OR: [condition, { category: { notIn: ROLE_CATEGORIES } }] };
 }
 
+/**
+ * SQLite matches `contains` case-insensitively for ASCII, so searching
+ * "engineer" finds "Engineer". Postgres does not: there `contains` compiles to
+ * a case-sensitive LIKE, and you need ILIKE via `mode: 'insensitive'`.
+ *
+ * Prisma rejects `mode` outright on SQLite, so it cannot simply be set always.
+ * Detecting the provider from the connection string keeps search behaving
+ * identically on a local SQLite file and on Supabase.
+ */
+const IS_POSTGRES = /^postgres(ql)?:\/\//i.test(process.env.DATABASE_URL ?? '');
+
+/** Case-insensitive substring match on either provider. */
+function like(term: string) {
+  return (
+    IS_POSTGRES ? { contains: term, mode: 'insensitive' } : { contains: term }
+  ) as { contains: string };
+}
+
 /** One word, matched across every field a person would expect it to hit. */
 function anyFieldContains(term: string): Prisma.ListingWhereInput {
   return {
     OR: [
-      { title: { contains: term } },
-      { companyName: { contains: term } },
-      { tags: { contains: term } },
-      { funder: { contains: term } },
-      { description: { contains: term } },
+      { title: like(term) },
+      { companyName: like(term) },
+      { tags: like(term) },
+      { funder: like(term) },
+      { description: like(term) },
     ],
   };
 }
@@ -58,7 +76,6 @@ export function buildWhere(input: SearchInput): Prisma.ListingWhereInput {
   const and: Prisma.ListingWhereInput[] = [{ active: true }];
 
   if (input.q) {
-    // SQLite `contains` is case-insensitive for ASCII with the default collation.
     // Every word must appear somewhere, which is what a search box should do.
     for (const term of input.q.split(/\s+/).filter(Boolean).slice(0, 6)) {
       and.push(anyFieldContains(term));
@@ -103,7 +120,7 @@ export function buildWhere(input: SearchInput): Prisma.ListingWhereInput {
 
   if (input.locations?.length) {
     and.push({
-      OR: input.locations.map((loc) => ({ locations: { contains: loc } })),
+      OR: input.locations.map((loc) => ({ locations: like(loc) })),
     });
   }
 

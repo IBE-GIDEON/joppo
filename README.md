@@ -242,7 +242,67 @@ plain install, so do not undo them casually:
 
 Run `npm audit` after any dependency change and keep it at zero.
 
-## Moving to Postgres
+## Moving to Supabase
+
+Supabase is Postgres, so it drops in cleanly. Use it **for the database only**.
+Do not migrate to Supabase Auth: NextAuth with the Prisma adapter already
+handles Google and magic links, and swapping it would mean rewriting sign-in,
+sessions and the entitlement checks for no gain.
+
+**1. Get both connection strings.** In the Supabase dashboard under Project
+Settings, Database, copy:
+
+- the **Transaction pooler** string on port `6543`
+- the **Direct connection** string on port `5432`
+
+The pooler matters. Serverless functions open a connection per invocation and
+will exhaust a direct Postgres connection limit quickly. Migrations, on the
+other hand, cannot run through a transaction pooler, which is why both are
+needed.
+
+**2. Set them in `.env`:**
+
+```bash
+DATABASE_URL="postgresql://...pooler...:6543/postgres?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://...direct...:5432/postgres"
+```
+
+**3. Change three lines in `prisma/schema.prisma`:**
+
+```prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+```
+
+**4. Create the tables and refill the catalogue:**
+
+```bash
+npx prisma db push
+npm run seed
+```
+
+The old SQLite file is not migrated. Re-seeding rebuilds the catalogue from the
+live sources in about four minutes, which is cleaner than moving stale rows.
+Accounts and payments do not carry over, so do this before you have real users.
+
+### Two things that would otherwise bite
+
+**Case-sensitive search.** SQLite matches `contains` case-insensitively;
+Postgres does not. Without handling, searching "engineer" would stop matching
+"Engineer" the moment you switched. `like()` in `src/lib/search.ts` detects the
+provider from the connection string and adds `mode: 'insensitive'` on Postgres
+only, because Prisma rejects that option on SQLite. Both providers behave the
+same now. Route any new string filter through that helper rather than calling
+`contains` directly.
+
+**Free-tier pausing.** Supabase pauses a free project after about a week of
+inactivity, which would take the site down. The hourly crawl keeps the database
+active, so this only matters if you disable the cron.
+
+## Moving to Postgres generally
 
 Change the provider in `prisma/schema.prisma` to `postgresql`, point `DATABASE_URL` at
 the database, and run `npx prisma db push`. No application code changes.
