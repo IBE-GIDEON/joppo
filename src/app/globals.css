@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-white/[0.08];
+  }
+
+  html {
+    @apply scroll-smooth;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ink-950 text-white/90 antialiased;
+    background-image:
+      radial-gradient(120% 65% at 50% -10%, rgba(96, 57, 245, 0.16) 0%, rgba(7, 7, 11, 0) 60%);
+    background-repeat: no-repeat;
+  }
+
+  ::selection {
+    background: rgba(124, 92, 255, 0.35);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.09);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); background-clip: content-box; }
+}
+
+@layer components {
+  /* Panel used for every card. Squared off and flat: the shape should not be
+     the loudest thing on the screen. */
+  .panel {
+    @apply rounded-[6px] border border-white/[0.08] bg-white/[0.022] backdrop-blur-xl;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .panel-hover {
+    @apply transition-colors duration-150;
+  }
+  .panel-hover:hover {
+    @apply border-white/[0.16] bg-white/[0.04];
+  }
+
+  /* Text input and select surfaces. */
+  .field {
+    @apply rounded-[6px] border border-white/[0.10] bg-white/[0.03] text-white outline-none transition-colors;
+  }
+  .field::placeholder {
+    @apply text-white/25;
+  }
+  .field:focus {
+    @apply border-white/25 bg-white/[0.05];
+  }
+
+  /* Filter and category chips. One accent, used only for "selected". */
+  .chip {
+    @apply shrink-0 whitespace-nowrap rounded-[5px] border border-white/[0.09] bg-transparent px-2.5 py-1.5 text-[12.5px] text-white/50 transition-colors;
+  }
+  .chip:hover {
+    @apply border-white/20 text-white/85;
+  }
+  .chip-on {
+    @apply border-white/25 bg-white/[0.09] text-white;
+  }
+
+  /* Small uppercase eyebrow above headings. */
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-iris-300/70;
+  }
+
+  .h-display {
+    @apply text-balance font-semibold tracking-tightest text-white;
+    font-size: clamp(2.25rem, 6.2vw, 4.25rem);
+    line-height: 1.03;
+  }
+
+  .h-section {
+    @apply text-balance font-semibold tracking-tightest text-white;
+    font-size: clamp(1.7rem, 3.4vw, 2.6rem);
+    line-height: 1.1;
+  }
+
+  .lede {
+    @apply mx-auto max-w-xl text-pretty text-[15px] leading-relaxed text-white/45;
+  }
+
+  /* Gradient hairline used to separate sections. */
+  .rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 25%,
+      rgba(124, 92, 255, 0.35) 50%,
+      rgba(255, 255, 255, 0.1) 75%,
+      transparent 100%
+    );
+  }
+
+  /* The bloom behind the hero and behind key cards. */
+  .bloom {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: 0.55;
+  }
+
+  .kbd {
+    @apply inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 font-mono text-xs text-white/70;
+    box-shadow: inset 0 -2px 0 0 rgba(0, 0, 0, 0.35);
+  }
+
+  /* Locked listing content. Cosmetic only — the server never sends the
+     real values to an unsubscribed client. */
+  .redacted {
+    @apply select-none rounded-[3px] bg-white/[0.09] text-transparent;
+    animation: none;
+  }
+
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@layer components {
+  /* Marquee tracks. Each track renders its items twice, so translating by
+     -50% lands exactly on the duplicate and the loop is seamless. */
+  @keyframes marquee-x {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes marquee-y {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
+  }
+
+  .marquee-x {
+    animation: marquee-x var(--marquee-duration, 46s) linear infinite;
+    will-change: transform;
+  }
+  .marquee-y {
+    animation: marquee-y var(--marquee-duration, 46s) linear infinite;
+    will-change: transform;
+  }
+  .marquee-reverse {
+    animation-direction: reverse;
+  }
+
+  /* Let a reader stop a card to actually read it. */
+  .marquee-hold:hover .marquee-x,
+  .marquee-hold:hover .marquee-y {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-x,
+    .marquee-y {
+      animation: none;
+    }
+  }
+
+  /* Softens both ends of a track so cards enter and leave instead of
+     popping at a hard edge. */
+  .fade-x {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 9%, #000 91%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 9%, #000 91%, transparent);
+  }
+  .fade-y {
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  }
+}
