@@ -37,8 +37,9 @@ async function handle(req: Request) {
   const batch =
     positiveInt(url.searchParams.get('limit') ?? undefined, 0) ||
     positiveInt(process.env.INGEST_BATCH, 10);
-  // Retire listings not seen for a week. The crawl cycle is a few hours, so a
-  // listing missing for seven days is genuinely gone from the source.
+  // Delete listings that have been retired for this long. Retirement itself is
+  // immediate and per board: a listing that vanishes from its board is marked
+  // inactive on the next crawl of that board, not aged out globally.
   const staleDays = positiveInt(url.searchParams.get('stale') ?? undefined, 7);
 
   try {
@@ -61,6 +62,7 @@ async function handle(req: Request) {
         failed: result.sourcesFailed,
         upserted: result.listingsUpserted,
         retired: result.retired,
+        purged: result.purged,
         seconds: Math.round(result.durationMs / 1000),
         catalogue: result.totals,
         // Surfaces per-source failures so a broken adapter is visible from the

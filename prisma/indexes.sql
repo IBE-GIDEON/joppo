@@ -48,3 +48,7 @@ CREATE INDEX IF NOT EXISTS listing_fetched_at
 -- The crawler picks the least recently visited sources on every run.
 CREATE INDEX IF NOT EXISTS source_enabled_lastrun
   ON "Source" ("lastRunAt" NULLS FIRST) WHERE enabled = true;
+
+-- Discovery adds boards faster than a candidate list is edited, so the token
+-- lookup that skips already-known boards must stay cheap.
+CREATE INDEX IF NOT EXISTS source_kind_token ON "Source" (kind, token);

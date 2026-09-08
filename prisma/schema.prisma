@@ -175,11 +175,20 @@ model Listing {
   postedAt   DateTime  @default(now())
   fetchedAt  DateTime  @default(now())
   active     Boolean   @default(true)
+  // When active flipped to false, so long-dead rows can be purged.
+  retiredAt  DateTime?
 
-  company Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  saved   SavedListing[]
+  // Which board this came from. Lets a crawl retire exactly the listings that
+  // disappeared from that board, instead of ageing every listing out globally.
+  sourceId   String?
+
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sourceRef  Source?        @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  saved      SavedListing[]
 
   @@unique([source, externalId])
+  @@index([sourceId, fetchedAt])
+  @@index([active, retiredAt])
   @@index([category, postedAt])
   @@index([remote])
   @@index([active, category])
@@ -222,6 +231,8 @@ model Source {
   lastRunAt DateTime?
   lastCount Int      @default(0)
   lastError String?
+
+  listings Listing[]
 
   @@unique([kind, token])
 }

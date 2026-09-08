@@ -51,6 +51,7 @@ export interface IngestResult {
   sourcesFailed: number;
   listingsUpserted: number;
   retired: number;
+  purged: number;
   durationMs: number;
   totals: { active: number; companies: number; byCategory: Record<string, number> };
   perSource: { source: string; count: number; error?: string }[];
@@ -94,7 +95,7 @@ function resolveCategory(raw: RawListing): string {
   return raw.category;
 }
 
-async function persist(raw: RawListing): Promise<boolean> {
+async function persist(raw: RawListing, sourceId: string | null): Promise<boolean> {
   if (!raw.title?.trim() || !raw.applyUrl?.trim() || !raw.externalId) return false;
 
   const companyId = await upsertCompany(raw);
@@ -123,6 +124,8 @@ async function persist(raw: RawListing): Promise<boolean> {
     postedAt: raw.postedAt ?? new Date(),
     fetchedAt: new Date(),
     active: true,
+    retiredAt: null,
+    sourceId,
   };
 
   await prisma.listing.upsert({
@@ -153,6 +156,7 @@ export async function seedSources(): Promise<number> {
 
 export async function runIngestion(options: IngestOptions = {}): Promise<IngestResult> {
   const started = Date.now();
+  const runStart = Date.now();
   const {
     limit,
     timeBudgetMs,
@@ -186,6 +190,7 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
   });
 
   let listingsUpserted = 0;
+  let retiredThisRun = 0;
   let sourcesFailed = 0;
   let sourcesRun = 0;
   const perSource: IngestResult['perSource'] = [];
@@ -211,10 +216,23 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
       let saved = 0;
       for (const raw of raws) {
         try {
-          if (await persist(raw)) saved++;
+          if (await persist(raw, source.id)) saved++;
         } catch {
           // One malformed record must not lose the rest of the batch.
         }
+      }
+
+      // Anything on this board that we did not just see has been taken down.
+      // Scoped to this board and this run, so a board we have not visited
+      // recently never has its listings aged out by mistake. Guarded on a
+      // non-empty result, so a transient empty response cannot wipe a board.
+      if (saved > 0) {
+        const gone = await prisma.listing.updateMany({
+          where: { sourceId: source.id, active: true, fetchedAt: { lt: new Date(runStart) } },
+          data: { active: false, retiredAt: new Date() },
+        });
+        retiredThisRun += gone.count;
+        if (gone.count) onLog(`  --  ${label.padEnd(34)} retired ${gone.count}`);
       }
 
       listingsUpserted += saved;
@@ -240,14 +258,15 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     }
   });
 
-  let retired = 0;
+  // Retired rows are kept briefly so a listing that flickers can come back and
+  // so saved bookmarks do not vanish instantly, then deleted to control size.
+  let purged = 0;
   if (staleDays > 0) {
     const cutoff = new Date(Date.now() - staleDays * 86_400_000);
-    const result = await prisma.listing.updateMany({
-      where: { fetchedAt: { lt: cutoff }, active: true },
-      data: { active: false },
+    const result = await prisma.listing.deleteMany({
+      where: { active: false, retiredAt: { lt: cutoff } },
     });
-    retired = result.count;
+    purged = result.count;
   }
 
   const [active, companies, grouped] = await Promise.all([
@@ -273,7 +292,8 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     sourcesRun,
     sourcesFailed,
     listingsUpserted,
-    retired,
+    retired: retiredThisRun,
+    purged,
     durationMs: Date.now() - started,
     totals: { active, companies, byCategory },
     perSource,
