@@ -157,6 +157,13 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     onLog = () => {},
   } = options;
 
+  // A fresh deployment has tables but no crawl list. Seed it on the first run
+  // so the catalogue fills itself without anyone running a command by hand.
+  if ((await prisma.source.count()) === 0) {
+    const n = await seedSources();
+    onLog(`  seeded ${n} sources on first run`);
+  }
+
   const sources = await prisma.source.findMany({
     where: {
       enabled: true,
