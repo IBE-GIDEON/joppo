@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runIngestion } from '@/scrapers/ingest';
 import { positiveInt } from '@/scrapers/core';
+import { purgeExpiredUsage } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 // Vercel caps this by plan. The run also self-limits with a time budget, so a
@@ -50,6 +51,10 @@ async function handle(req: Request) {
       forceSeed: url.searchParams.get('seed') === '1',
     });
 
+    // Rate-limit counters accumulate a row per caller per hour. The crawl
+    // already runs hourly, so it is the natural place to sweep them.
+    const usagePurged = await purgeExpiredUsage();
+
     return NextResponse.json(
       {
         ok: true,
@@ -63,6 +68,7 @@ async function handle(req: Request) {
         upserted: result.listingsUpserted,
         retired: result.retired,
         purged: result.purged,
+        usageRowsPurged: usagePurged,
         seconds: Math.round(result.durationMs / 1000),
         catalogue: result.totals,
         // Surfaces per-source failures so a broken adapter is visible from the

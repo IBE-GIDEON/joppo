@@ -219,6 +219,24 @@ model SavedListing {
   @@unique([userId, listingId])
 }
 
+// Rate limiting and plan quotas.
+//
+// One row per (key, window). A key is an IP for anonymous callers or a user id
+// for signed-in ones; a window is an hour bucket for burst control or a month
+// bucket for plan quotas. Counting in the database rather than in memory is
+// what makes the limit hold across serverless instances, which each have their
+// own memory and are created and destroyed constantly.
+model Usage {
+  id        String   @id @default(cuid())
+  key       String
+  window    String
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@unique([key, window])
+  @@index([expiresAt])
+}
+
 // Where the crawler goes. Editable from seed data so new sources do not
 // require a code change.
 model Source {

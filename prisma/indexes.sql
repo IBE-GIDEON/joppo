@@ -52,3 +52,8 @@ CREATE INDEX IF NOT EXISTS source_enabled_lastrun
 -- Discovery adds boards faster than a candidate list is edited, so the token
 -- lookup that skips already-known boards must stay cheap.
 CREATE INDEX IF NOT EXISTS source_kind_token ON "Source" (kind, token);
+
+-- Rate limiting reads and writes one row per caller per window, on every
+-- request, so this lookup has to be an index hit.
+CREATE INDEX IF NOT EXISTS usage_key_window ON "Usage" (key, window);
+CREATE INDEX IF NOT EXISTS usage_expires ON "Usage" ("expiresAt");

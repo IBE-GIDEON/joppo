@@ -111,6 +111,7 @@ export function SearchApp({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [banner, setBanner] = useState(justUnlocked);
+  const [limited, setLimited] = useState<string | null>(null);
 
   const requestId = useRef(0);
 
@@ -126,7 +127,19 @@ export function SearchApp({
           body: JSON.stringify({ ...toRequest(filters), page: nextPage, pageSize: PAGE_SIZE }),
         });
 
+        // A rate-limited search must say so, not silently show nothing.
+        if (res.status === 429) {
+          const body = await res.json().catch(() => ({}));
+          if (id === requestId.current) {
+            setLimited(body.error ?? 'Too many searches. Try again shortly.');
+            setLoading(false);
+            setLoadingMore(false);
+          }
+          return;
+        }
+
         if (!res.ok) throw new Error('Search failed');
+        setLimited(null);
         const body = (await res.json()) as SearchResult;
 
         // Ignore a response that a newer request has already superseded.
@@ -451,6 +464,12 @@ export function SearchApp({
 
       {/* ---------------------------------------------------------- results */}
       <div className="mx-auto max-w-[1400px] px-5 py-6">
+        {limited ? (
+          <div className="panel mb-4 flex items-start gap-3 border-amber-400/25 bg-amber-400/[0.06] px-4 py-3.5">
+            <p className="flex-1 text-[13px] leading-relaxed text-amber-100/80">{limited}</p>
+          </div>
+        ) : null}
+
         {banner ? (
           <div className="panel mb-4 flex items-center gap-3 px-4 py-3">
             <p className="flex-1 text-[13px] text-white/60">

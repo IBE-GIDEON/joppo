@@ -9,6 +9,8 @@ export interface Plan {
   days: number;
   tagline: string;
   badge?: string;
+  /** Monthly search allowance. Mirrors PLAN_SEARCH_QUOTA in rate-limit.ts. */
+  searches: number;
   perks: string[];
 }
 
@@ -23,11 +25,12 @@ export const PLANS: Record<PlanId, Plan> = {
     cadence: '/week',
     days: 7,
     tagline: 'For a short, hard push.',
+    searches: 1_000,
     perks: [
+      '1,000 searches',
       'Every listing, unblurred',
       'Apply links straight to the source',
       'All five categories',
-      'Unlimited searches',
       'One payment, no auto-renew',
     ],
   },
@@ -40,7 +43,9 @@ export const PLANS: Record<PlanId, Plan> = {
     days: 30,
     badge: 'Most popular',
     tagline: 'The realistic length of a search.',
+    searches: 5_000,
     perks: [
+      '5,000 searches a month',
       'Everything in Week pass',
       'Save listings to a shortlist',
       'Saved searches you can re-run',
@@ -57,7 +62,9 @@ export const PLANS: Record<PlanId, Plan> = {
     days: 365,
     badge: 'Best value',
     tagline: 'Two-thirds off. Never think about it again.',
+    searches: 20_000,
     perks: [
+      '20,000 searches a month',
       'Everything in Monthly',
       'Under $3.34 a month',
       'Sort grants and tenders by closing date',
