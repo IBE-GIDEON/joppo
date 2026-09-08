@@ -8,8 +8,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  // Queries go through the Supabase transaction pooler on 6543.
   url      = env("DATABASE_URL")
+  // Migrations need a direct connection; they cannot run through a pooler.
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------- auth
