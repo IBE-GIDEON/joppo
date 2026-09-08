@@ -1,0 +1,51 @@
+name: Hourly crawl
+
+# Vercel's Hobby plan allows a cron job to fire only once a day, which is not
+# enough for a catalogue the pricing page says is refreshed hourly. This runs
+# the same endpoint on GitHub's scheduler instead, which is free and has no
+# frequency limit. Delete this workflow if you move to Vercel Pro and let
+# vercel.json handle it.
+#
+# Requires two repository secrets (Settings, Secrets and variables, Actions):
+#   JOPPO_URL     https://your-domain
+#   CRON_SECRET   the same value set in the Vercel environment
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch: # lets you trigger a crawl by hand from the Actions tab
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger ingestion
+        env:
+          JOPPO_URL: ${{ secrets.JOPPO_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$JOPPO_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Set the JOPPO_URL and CRON_SECRET repository secrets."
+            exit 1
+          fi
+
+          # Fail the job on a non-2xx so a broken crawl is visible in the
+          # Actions tab rather than failing silently for weeks.
+          body=$(mktemp)
+          code=$(curl -sS --max-time 120 -o "$body" -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$JOPPO_URL/api/cron/ingest")
+
+          echo "HTTP $code"
+          cat "$body"
+          echo
+
+          case "$code" in
+            2*) echo "Crawl completed." ;;
+            *)  echo "::error::Crawl failed with HTTP $code"; exit 1 ;;
+          esac

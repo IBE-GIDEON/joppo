@@ -170,6 +170,19 @@ as a query parameter:
 curl "https://your-domain/api/cron/ingest?token=$CRON_SECRET"
 ```
 
+**On Vercel's Hobby plan, cron jobs fire only once a day.** That is not enough
+for a catalogue the pricing page says is refreshed hourly. Two options:
+
+- Upgrade to Vercel Pro, and `vercel.json` handles it.
+- Stay on Hobby and let GitHub run it. `.github/workflows/crawl.yml` already
+  does this hourly for free. Add two repository secrets under Settings, Secrets
+  and variables, Actions: `JOPPO_URL` (your domain) and `CRON_SECRET` (the same
+  value as in Vercel). The workflow fails loudly in the Actions tab if a crawl
+  breaks, and you can trigger one by hand from there too.
+
+GitHub disables scheduled workflows on repositories with no activity for 60
+days, so push something occasionally or use the Vercel Pro route.
+
 ### Crawl commands
 
 ```bash
@@ -241,6 +254,36 @@ plain install, so do not undo them casually:
   reinstating the wildcard.
 
 Run `npm audit` after any dependency change and keep it at zero.
+
+## Deploying to Vercel
+
+**`.env` is gitignored and never reaches Vercel.** Every variable has to be set
+again in Project Settings, Environment Variables. Set all of these:
+
+| Variable | Production value |
+| --- | --- |
+| `DATABASE_URL` | Supabase transaction pooler, port 6543 |
+| `DIRECT_URL` | Supabase direct or session pooler, port 5432 |
+| `NEXTAUTH_URL` | **Your real domain**, not localhost |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From Google Cloud console |
+| `EMAIL_SERVER` / `EMAIL_FROM` | SMTP connection string and sender |
+| `PAYSTACK_SECRET_KEY` | Live key |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Live public key |
+| `PAYSTACK_CURRENCY` | `USD` |
+| `CRON_SECRET` | Any long random string |
+| `INGEST_BATCH` | `10` |
+
+**Do not set `BILLING_DEV_BYPASS` in production.** It disarms itself once a
+Paystack key exists, but leaving it out entirely is one less thing to get wrong.
+
+Two things that must be updated outside Vercel once you have a domain:
+
+- **Google OAuth redirect URI** must include `https://your-domain/api/auth/callback/google`.
+- **Paystack webhook URL** must be set to `https://your-domain/api/paystack/webhook`.
+
+The build command is already `prisma generate && next build`, which Vercel needs
+in order to produce a client for its own Linux runtime.
 
 ## Moving to Supabase
 
