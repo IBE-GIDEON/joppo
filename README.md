@@ -301,13 +301,21 @@ sessions and the entitlement checks for no gain.
 **1. Get both connection strings.** In the Supabase dashboard under Project
 Settings, Database, copy:
 
-- the **Transaction pooler** string on port `6543`
-- the **Direct connection** string on port `5432`
+- the **Transaction pooler** string on port `6543` → `DATABASE_URL`
+- the **Session pooler** string on port `5432` → `DIRECT_URL`
 
-The pooler matters. Serverless functions open a connection per invocation and
-will exhaust a direct Postgres connection limit quickly. Migrations, on the
-other hand, cannot run through a transaction pooler, which is why both are
-needed.
+Both are on the `pooler.supabase.com` host. Two reasons:
+
+- Serverless functions open a connection per invocation and would exhaust a
+  direct Postgres connection limit, so queries go through the transaction
+  pooler.
+- Schema changes cannot run through a *transaction* pooler, so migrations need
+  the session pooler.
+
+**Do not use the "Direct connection" string** that points at
+`db.<ref>.supabase.co`. Supabase made it IPv6-only on the free plan and Vercel's
+build machines are IPv4, so the hostname does not resolve there and the build
+fails at `prisma db push`. The session pooler is the IPv4 equivalent.
 
 **2. Set them in `.env`:**
 
