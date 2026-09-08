@@ -185,6 +185,27 @@ export function SearchApp({
 
   const update = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
+  async function deleteAccount() {
+    const confirmed = window.confirm(
+      [
+        'Delete your account?',
+        '',
+        'This removes your sign-in, your saved listings and saved searches, and your preferences.',
+        'Any remaining paid access is lost and is not refunded automatically.',
+        'This cannot be undone.',
+      ].join('\n'),
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/api/account/delete', { method: 'POST' });
+      if (!res.ok) throw new Error('delete failed');
+      await signOut({ callbackUrl: '/' });
+    } catch {
+      window.alert('Could not delete the account. Email support and we will do it by hand.');
+    }
+  }
+
   async function toggleSaved(item: ListingDto) {
     const next = !item.saved;
     // Flip immediately, roll back if the write fails.
@@ -334,6 +355,12 @@ export function SearchApp({
                 className="w-full rounded-[4px] px-2.5 py-2 text-left text-[13px] text-white/70 hover:bg-white/[0.06] hover:text-white"
               >
                 Sign out
+              </button>
+              <button
+                onClick={() => void deleteAccount()}
+                className="mt-0.5 w-full rounded-[4px] px-2.5 py-2 text-left text-[13px] text-red-300/70 hover:bg-red-400/[0.08] hover:text-red-200"
+              >
+                Delete my account
               </button>
             </PopoverContent>
           </Popover>
