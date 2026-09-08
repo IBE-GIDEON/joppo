@@ -20,6 +20,8 @@ export const searchSchema = z.object({
   remoteOnly: z.boolean().optional(),
   /** Restrict to listings this user has bookmarked. */
   savedOnly: z.boolean().optional(),
+  /** Also scan the full posting text. Slower; off by default. */
+  searchDescriptions: z.boolean().optional(),
   salaryMin: z.number().int().min(0).max(1_000_000).optional(),
   datePosted: z.number().int().min(1).max(365).optional(),
   sort: z.enum(['RELEVANCE', 'NEWEST', 'DEADLINE']).default('NEWEST'),
@@ -59,17 +61,26 @@ function like(term: string) {
   ) as { contains: string };
 }
 
-/** One word, matched across every field a person would expect it to hit. */
-function anyFieldContains(term: string): Prisma.ListingWhereInput {
-  return {
-    OR: [
-      { title: like(term) },
-      { companyName: like(term) },
-      { tags: like(term) },
-      { funder: like(term) },
-      { description: like(term) },
-    ],
-  };
+/**
+ * One word, matched across the short, indexed fields.
+ *
+ * `description` is deliberately excluded. It holds up to 6,000 characters per
+ * row, and an ILIKE with a leading wildcard cannot use a btree index, so
+ * including it forced a full scan of every description on every word of every
+ * query. On 7,600 rows that already cost about 700ms per extra word; at the
+ * scale board discovery brings it would be unusable. Titles, company names,
+ * skill tags and funders carry trigram indexes and cover what people actually
+ * search for. Pass searchDescriptions to opt back in for a narrow query.
+ */
+function anyFieldContains(term: string, includeDescription = false): Prisma.ListingWhereInput {
+  const targets: Prisma.ListingWhereInput[] = [
+    { title: like(term) },
+    { companyName: like(term) },
+    { tags: like(term) },
+    { funder: like(term) },
+  ];
+  if (includeDescription) targets.push({ description: like(term) });
+  return { OR: targets };
 }
 
 export function buildWhere(input: SearchInput): Prisma.ListingWhereInput {
@@ -78,7 +89,7 @@ export function buildWhere(input: SearchInput): Prisma.ListingWhereInput {
   if (input.q) {
     // Every word must appear somewhere, which is what a search box should do.
     for (const term of input.q.split(/\s+/).filter(Boolean).slice(0, 6)) {
-      and.push(anyFieldContains(term));
+      and.push(anyFieldContains(term, input.searchDescriptions ?? false));
     }
   }
 
@@ -89,7 +100,9 @@ export function buildWhere(input: SearchInput): Prisma.ListingWhereInput {
     const chips = input.anyKeywords
       .map((chip) => chip.split(/\s+/).filter(Boolean).slice(0, 4))
       .filter((words) => words.length > 0)
-      .map((words) => ({ AND: words.map((word) => anyFieldContains(word)) }));
+      .map((words) => ({
+        AND: words.map((word) => anyFieldContains(word, input.searchDescriptions ?? false)),
+      }));
 
     if (chips.length) and.push({ OR: chips });
   }

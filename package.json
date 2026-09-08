@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "prisma generate && prisma db push --skip-generate && next build",
+    "build": "prisma generate && prisma db push --skip-generate && node scripts/apply-indexes.mjs && next build",
     "start": "next start -p 3100",
     "lint": "next lint",
     "db:push": "prisma db push",
@@ -12,7 +12,8 @@
     "seed": "tsx src/scrapers/run.ts --seed",
     "ingest": "tsx src/scrapers/run.ts",
     "ingest:jobs": "tsx src/scrapers/run.ts --only=JOB",
-    "ingest:grants": "tsx src/scrapers/run.ts --only=GRANT"
+    "ingest:grants": "tsx src/scrapers/run.ts --only=GRANT",
+    "db:indexes": "node scripts/apply-indexes.mjs"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "1.0.7",
