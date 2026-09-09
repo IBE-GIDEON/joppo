@@ -26,7 +26,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -51,6 +51,11 @@ jobs:
             echo "::error::Set the DATABASE_URL repository secret."
             exit 1
           fi
+          # A slice per run, stalest first. A full pass over every source takes
+          # about fifty minutes, so crawling the lot on an hourly trigger would
+          # leave runs overlapping almost continuously. Twenty-five sources
+          # finishes well inside the hour and covers all of them in three.
+          #
           # --stale=7 retires listings a board has stopped returning and purges
           # the ones that have been retired for a week.
-          npm run ingest -- --stale=7
+          npm run ingest -- --stale=7 --limit=25

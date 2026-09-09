@@ -42,6 +42,7 @@ async function main() {
   // error, which is what made `npm run ingest` fail outright.
   const { runIngestion, seedSources } = await import('./ingest');
   const { purgeExpiredUsage } = await import('../lib/rate-limit');
+  const { takeSnapshot } = await import('../lib/snapshot');
 
   console.log('\n  Joppo ingestion\n  ' + '-'.repeat(52));
 
@@ -70,6 +71,14 @@ async function main() {
   // no longer reached through /api/cron/ingest, which used to do this.
   const usagePurged = await purgeExpiredUsage();
   if (usagePurged) console.log(`  purged ${usagePurged} expired rate-limit rows`);
+
+  // Database size and catalogue size leave no trace of their own history, so
+  // "how fast is this growing, and when does it run out of room" can only be
+  // answered by writing the reading down as it happens.
+  const snapshot = await takeSnapshot();
+  if (snapshot) {
+    console.log(`  snapshot: ${(snapshot.dbBytes / 1024 / 1024).toFixed(1)} MB, ${snapshot.listings} listings`);
+  }
   console.log(
     `  catalogue: ${result.totals.active} active listings, ${result.totals.companies} organisations`,
   );

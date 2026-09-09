@@ -23,19 +23,33 @@ export async function GET(req: Request) {
   try {
     const result = await verifyTransaction(reference);
 
-    if (!result.success || !result.userId || !result.plan) {
-      await prisma.payment.updateMany({ where: { reference }, data: { status: 'failed' } });
+    // As in the webhook: what was bought and for how much comes from the row
+    // checkout wrote, and Paystack is asked only whether it was paid. The
+    // reference here arrives in a query string, so it is not trusted to
+    // describe itself.
+    const payment = await prisma.payment.findUnique({ where: { reference } });
+    if (!payment) {
+      return NextResponse.redirect(`${origin}/unlock?error=unknown_reference`);
+    }
+
+    if (!result.success) {
+      await prisma.payment.update({ where: { reference }, data: { status: 'failed' } });
       return NextResponse.redirect(`${origin}/unlock?error=payment_failed`);
     }
 
-    await prisma.payment.updateMany({
+    if (result.amount < payment.amount) {
+      await prisma.payment.update({ where: { reference }, data: { status: 'underpaid' } });
+      return NextResponse.redirect(`${origin}/unlock?error=amount_mismatch`);
+    }
+
+    await prisma.payment.update({
       where: { reference },
       data: { status: 'success', rawEvent: JSON.stringify(result.raw).slice(0, 8000) },
     });
 
     await activateSubscription({
-      userId: result.userId,
-      plan: result.plan as PlanId,
+      userId: payment.userId,
+      plan: payment.plan as PlanId,
       reference,
       customerCode: result.customerCode,
     });

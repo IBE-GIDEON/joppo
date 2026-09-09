@@ -257,3 +257,20 @@ model Source {
 
   @@unique([kind, token])
 }
+
+/// A periodic reading of the numbers that cannot be reconstructed after the
+/// fact. Signups and revenue can always be recounted from their own timestamps,
+/// but database size and catalogue size have no history of their own, so
+/// "how fast is this growing, and when does it run out" is unanswerable without
+/// writing it down. One row per crawl, which is a handful of rows a day.
+model Snapshot {
+  id         String   @id @default(cuid())
+  takenAt    DateTime @default(now())
+  dbBytes    BigInt
+  listings   Int
+  users      Int
+  activeSubs Int
+  grossMinor Int
+
+  @@index([takenAt])
+}
