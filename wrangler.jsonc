@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "joppo",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  // nodejs_compat gives the Worker the Node APIs the Postgres driver and
+  // Next's server need. Without it the build runs but the app cannot connect.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // Cloudflare cron has no frequency cap, unlike Vercel's once-a-day limit on
+  // the free plan. This replaces the GitHub Actions workaround.
+  "triggers": {
+    "crons": ["17 * * * *"]
+  }
+}

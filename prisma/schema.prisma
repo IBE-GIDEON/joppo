@@ -5,6 +5,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Cloudflare Workers run in V8 isolates and cannot load Prisma's native
+  // query engine binary, so queries go through a JavaScript driver instead.
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {

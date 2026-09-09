@@ -261,6 +261,59 @@ plain install, so do not undo them casually:
 
 Run `npm audit` after any dependency change and keep it at zero.
 
+## Deploying to Cloudflare Workers
+
+Vercel's Hobby plan bans commercial use in so many words: "restricted to
+non-commercial personal use only", explicitly naming "any method of requesting
+or processing payment". Taking money there requires Pro. Cloudflare has no such
+clause, so this is the host to use once payments are live.
+
+```bash
+npx wrangler login          # once
+npm run db:deploy           # create tables and indexes, once per database
+npm run cf:deploy           # build and ship
+```
+
+Set the same environment variables as secrets, which are encrypted and never
+appear in the dashboard or the repo:
+
+```bash
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put DIRECT_URL
+npx wrangler secret put NEXTAUTH_URL
+npx wrangler secret put NEXTAUTH_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put PAYSTACK_SECRET_KEY
+npx wrangler secret put CRON_SECRET
+```
+
+`npm run cf:preview` runs the real Worker locally first, which is worth doing
+before every deploy.
+
+### Two things that are different on Workers
+
+**Prisma cannot use its native engine.** Workers run in V8 isolates with no
+filesystem, so the query engine binary cannot load. `src/lib/db.ts` detects the
+runtime and swaps in a JavaScript Postgres driver through Prisma's driver
+adapter. Nothing else in the app changes, and Node hosts still use the fast
+native path.
+
+**The free plan allows 10ms of CPU per request.** Server rendering a page and
+querying the database will exceed that on the heavier routes. The Workers Paid
+plan lifts it to 30 seconds and costs $5 a month, a quarter of Vercel Pro. Do
+not launch paid traffic on the free tier expecting it to hold.
+
+Cloudflare cron has no frequency cap, so `wrangler.jsonc` schedules the crawl
+hourly directly and the GitHub Actions workaround becomes unnecessary.
+
+## Deploying to a container
+
+`Dockerfile` builds a standalone image that runs on Cloud Run, Fly.io, Koyeb or
+any VPS. Prisma keeps its native engine there, so nothing is swapped out. The
+entrypoint applies schema changes on start; set `SKIP_DB_SETUP=1` to disable
+that.
+
 ## Deploying to Vercel
 
 **`.env` is gitignored and never reaches Vercel.** Every variable has to be set

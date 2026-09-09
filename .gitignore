@@ -10,3 +10,6 @@ prisma/dev.db*
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+.open-next
+.wrangler
