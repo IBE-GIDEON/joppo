@@ -37,8 +37,14 @@ export default async function LoginPage({
 
         {params.error ? (
           <p className="mt-5 rounded-[6px] border border-red-400/20 bg-red-400/[0.07] p-3 text-[12.5px] leading-relaxed text-red-200/85">
-            That sign-in did not complete. Try again, and if it keeps failing, email us at{' '}
-            {LEGAL.contactEmail}.
+            That sign-in did not complete. Try again, and if it keeps failing, email{' '}
+            <a
+              href={`mailto:${LEGAL.contactEmail}`}
+              className="underline underline-offset-2 hover:text-red-100"
+            >
+              {LEGAL.contactLabel}
+            </a>
+            .
           </p>
         ) : null}
 

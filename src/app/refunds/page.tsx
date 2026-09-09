@@ -1,4 +1,5 @@
 import { LegalPage, Section } from '@/components/legal/legal-page';
+import { SupportLink } from '@/components/legal/support-link';
 import { LEGAL } from '@/lib/legal';
 
 export const metadata = {
@@ -21,7 +22,7 @@ export default function RefundsPage() {
           No form, no reason required, no attempt to talk you out of it.
         </p>
         <p>
-          One email to <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> is
+          One email to <SupportLink showAddress /> is
           enough. Send it from the address on your account and we will process it.
         </p>
       </Section>

@@ -1,4 +1,5 @@
 import { LegalPage, Section } from '@/components/legal/legal-page';
+import { SupportLink } from '@/components/legal/support-link';
 import { LEGAL } from '@/lib/legal';
 
 export const metadata = {
@@ -19,7 +20,7 @@ export default function PrivacyPage() {
           are not told that you looked at their listing.
         </p>
         <p>
-          {LEGAL.legalEntity} is the data controller. Reach us at {LEGAL.contactEmail}.
+          {LEGAL.legalEntity} is the data controller. Reach us at <SupportLink />.
         </p>
       </Section>
 
@@ -122,7 +123,7 @@ export default function PrivacyPage() {
           <li>Send your data to you in a portable format.</li>
         </ul>
         <p>
-          Email <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> and we
+          Email <SupportLink showAddress /> and we
           will act within 30 days. It costs nothing. If you think we have handled your data
           badly, you may complain to your local data protection authority.
         </p>

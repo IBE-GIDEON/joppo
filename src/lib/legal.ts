@@ -12,8 +12,14 @@ export const LEGAL = {
   /** TODO: your registered business name, or your own full name if you trade as an individual. */
   legalEntity: 'Joppo',
 
-  /** Published on all three policy pages and on the sign-in error. */
+  /**
+   * Where support mail goes. The address itself is off-brand next to Joppo, so
+   * most references render contactLabel and carry the address in the mailto
+   * link behind it. The Terms contact section still prints it in full, because
+   * a policy should name its contact route unambiguously.
+   */
   contactEmail: 'prevearchiveapp@gmail.com',
+  contactLabel: 'Joppo Support',
 
   /** TODO: the country whose law governs disputes. Usually where you are resident or registered. */
   jurisdiction: 'the Federal Republic of Nigeria',

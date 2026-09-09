@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LegalPage, Section } from '@/components/legal/legal-page';
+import { SupportLink } from '@/components/legal/support-link';
 import { LEGAL } from '@/lib/legal';
 import { PLAN_LIST } from '@/lib/plans';
 
@@ -66,7 +67,7 @@ export default function TermsPage() {
       <Section n={4} title="Your account">
         <p>
           You sign in through Google. Keep control of that account, because anyone with
-          access to it has access to yours. Tell us at {LEGAL.contactEmail} if you think
+          access to it has access to yours. Tell us at <SupportLink /> if you think
           someone else has got in.
         </p>
         <p>
@@ -124,7 +125,7 @@ export default function TermsPage() {
         </p>
         <p>
           If you publish a listing and want it removed from the index, email{' '}
-          {LEGAL.contactEmail} and we will remove it.
+          <SupportLink /> and we will remove it.
         </p>
       </Section>
 
@@ -163,7 +164,7 @@ export default function TermsPage() {
       <Section n={10} title="Ending the agreement">
         <p>
           You may stop using the service and ask us to delete your account at any time, by
-          emailing {LEGAL.contactEmail}. Because access is a one-off purchase, stopping does
+          emailing <SupportLink />. Because access is a one-off purchase, stopping does
           not require you to cancel anything.
         </p>
         <p>
@@ -192,7 +193,7 @@ export default function TermsPage() {
       <Section n={13} title="Contact">
         <p>
           Questions about these terms go to{' '}
-          <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>.
+          <SupportLink showAddress />.
           {LEGAL.address ? ` Our address is ${LEGAL.address}.` : ''}
         </p>
       </Section>
