@@ -12,8 +12,8 @@ export const LEGAL = {
   /** TODO: your registered business name, or your own full name if you trade as an individual. */
   legalEntity: 'Joppo',
 
-  /** TODO: a mailbox you actually read. This is published and Paystack will check it. */
-  contactEmail: 'support@joppo.app',
+  /** Published on all three policy pages and on the sign-in error. */
+  contactEmail: 'prevearchiveapp@gmail.com',
 
   /** TODO: the country whose law governs disputes. Usually where you are resident or registered. */
   jurisdiction: 'the Federal Republic of Nigeria',
