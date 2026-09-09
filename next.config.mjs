@@ -16,13 +16,20 @@ const nextConfig = {
     '@prisma/client',
     '@prisma/adapter-pg-worker',
     '@prisma/pg-worker',
+    '.prisma/client',
   ],
 
   webpack: (config) => {
-    // `cloudflare:sockets` only exists inside a Worker. Webpack cannot resolve
-    // the scheme during a Node build and fails the compile, so it is declared
-    // external and left for the runtime to provide.
-    config.externals = [...(config.externals ?? []), 'cloudflare:sockets'];
+    config.externals = [
+      ...(config.externals ?? []),
+      // Only exists inside a Worker. Webpack cannot resolve the scheme during
+      // a Node build and fails the compile.
+      'cloudflare:sockets',
+      // The wasm Prisma build pulls in a .wasm binary that webpack tries to
+      // parse as JavaScript. Left external so the Worker bundler, which does
+      // understand WebAssembly imports, handles it instead.
+      '.prisma/client/wasm',
+    ];
     return config;
   },
 };

@@ -13,6 +13,12 @@
   "observability": {
     "enabled": true
   },
+  // Read by src/lib/db.ts to pick the Postgres driver over Prisma's native
+  // engine. A build-time flag rather than runtime sniffing, because the Node
+  // compatibility layer makes a Worker look enough like Node to fool a guess.
+  "vars": {
+    "RUNTIME_TARGET": "cloudflare"
+  },
   // Cloudflare cron has no frequency cap, unlike Vercel's once-a-day limit on
   // the free plan. This replaces the GitHub Actions workaround.
   "triggers": {

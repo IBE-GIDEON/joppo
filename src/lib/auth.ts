@@ -38,6 +38,24 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+
+  // NextAuth swallows provider errors and redirects with a generic code, which
+  // on a serverless host means the real cause never reaches you. Surfacing it
+  // in the platform log costs nothing and leaks nothing: codes and messages
+  // only, never tokens.
+  logger: {
+    error(code, metadata) {
+      const detail =
+        metadata instanceof Error
+          ? `${metadata.name}: ${metadata.message}`
+          : JSON.stringify(metadata)?.slice(0, 600);
+      console.error(`[next-auth] ${code} :: ${detail}`);
+    },
+    warn(code) {
+      console.warn(`[next-auth] warn ${code}`);
+    },
+    debug() {},
+  },
 };
 
 export function auth() {
