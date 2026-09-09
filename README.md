@@ -268,11 +268,34 @@ non-commercial personal use only", explicitly naming "any method of requesting
 or processing payment". Taking money there requires Pro. Cloudflare has no such
 clause, so this is the host to use once payments are live.
 
+### From your machine
+
 ```bash
 npx wrangler login          # once
 npm run db:deploy           # create tables and indexes, once per database
 npm run cf:deploy           # build and ship
 ```
+
+### From Cloudflare's own CI (Workers Builds)
+
+Connect the GitHub repository, then set these two commands in the project's
+build settings. The defaults will not work:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `npm run cf:build` |
+| Deploy command | `npx wrangler deploy` |
+
+`npm run build` alone is not enough. It produces a Next.js build, but
+Cloudflare needs the OpenNext bundle in `.open-next/`, and wrangler fails with
+"Could not find compiled Open Next config" if that step was skipped.
+
+`opennextjs-cloudflare build` runs `npm run build` itself, which is why `build`
+must stay the plain Next build rather than calling the Cloudflare step.
+
+Also add `DATABASE_URL` as a **build-time** variable, not only a secret. The
+landing page is prerendered at build and reads the live listing counts; without
+it the page ships showing zero until the first revalidation.
 
 Set the same environment variables as secrets, which are encrypted and never
 appear in the dashboard or the repo:
