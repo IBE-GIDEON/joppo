@@ -16,10 +16,6 @@ import path from 'node:path';
 
 loadEnv();
 
-// Imported after loadEnv so DATABASE_URL is set before Prisma initialises.
-const { runIngestion, seedSources } = await import('./ingest');
-const { purgeExpiredUsage } = await import('../lib/rate-limit');
-
 const argv = process.argv.slice(2);
 const flag = (name: string): string | undefined => {
   const hit = argv.find((a) => a.startsWith(`--${name}=`));
@@ -40,6 +36,13 @@ function loadEnv() {
 }
 
 async function main() {
+  // Imported here rather than at the top of the file, for two reasons. Prisma
+  // reads DATABASE_URL as it initialises, so loadEnv() has to have run first.
+  // And this file compiles to CommonJS, where a top-level await is a build
+  // error, which is what made `npm run ingest` fail outright.
+  const { runIngestion, seedSources } = await import('./ingest');
+  const { purgeExpiredUsage } = await import('../lib/rate-limit');
+
   console.log('\n  Joppo ingestion\n  ' + '-'.repeat(52));
 
   if (has('seed')) {

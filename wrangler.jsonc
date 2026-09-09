@@ -22,9 +22,22 @@
   "vars": {
     "RUNTIME_TARGET": "cloudflare"
   },
-  // Cloudflare cron has no frequency cap, unlike Vercel's once-a-day limit on
-  // the free plan. This replaces the GitHub Actions workaround.
+  // No cron trigger, deliberately.
+  //
+  // The crawl cannot run inside a Worker on the free plan: 10ms of CPU per
+  // invocation, and parsing a single job board is well past that, so even
+  // ?limit=1 dies with error 1102 after writing part of a source. A scheduled
+  // invocation hits the same ceiling, so an hourly trigger here would only
+  // half-crawl a source and fail, once an hour, silently.
+  //
+  // The crawl runs in .github/workflows/crawl.yml instead, in a plain Node
+  // runner with no CPU cap, writing to Supabase directly.
+  //
+  // worker-entry.js still exports the scheduled() handler OpenNext omits. On
+  // Workers Paid, where the CPU limit is 30s, restoring the line below is all
+  // that is needed to move the crawl back here:
+  //   "triggers": { "crons": ["17 * * * *"] }
   "triggers": {
-    "crons": ["17 * * * *"]
+    "crons": []
   }
 }
