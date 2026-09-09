@@ -1,7 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "joppo",
-  "main": ".open-next/worker.js",
+  // Not .open-next/worker.js directly. That file exports `fetch` only, and a
+  // cron trigger invokes `scheduled()`, so the hourly crawl silently never ran.
+  // worker-entry.js wraps it and adds that handler.
+  "main": "worker-entry.js",
   "compatibility_date": "2026-09-01",
   // nodejs_compat gives the Worker the Node APIs the Postgres driver and
   // Next's server need. Without it the build runs but the app cannot connect.

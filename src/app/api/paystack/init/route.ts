@@ -27,6 +27,19 @@ export async function POST(req: Request) {
   const plan = planFrom(body.plan);
   if (!plan) return NextResponse.json({ error: 'Unknown plan.' }, { status: 400 });
 
+  // Checked before anything is written. Creating the payment row first left a
+  // `pending` row behind every time a host was missing its Paystack keys, so
+  // the table filled with records for checkouts that never started.
+  if (!paystackConfigured() && !devBypassEnabled()) {
+    return NextResponse.json(
+      {
+        error:
+          'Payments are not configured yet. Set PAYSTACK_SECRET_KEY on this deployment.',
+      },
+      { status: 503 },
+    );
+  }
+
   const reference = newReference(userId);
   const origin = process.env.NEXTAUTH_URL || new URL(req.url).origin;
   const callbackUrl = `${origin}/api/paystack/callback`;
@@ -51,16 +64,6 @@ export async function POST(req: Request) {
       authorizationUrl: `${origin}/search?unlocked=1`,
       devBypass: true,
     });
-  }
-
-  if (!paystackConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          'Payments are not configured. Add PAYSTACK_SECRET_KEY to .env, or set BILLING_DEV_BYPASS=1 to test the flow locally.',
-      },
-      { status: 503 },
-    );
   }
 
   try {

@@ -1,19 +1,23 @@
 name: Hourly crawl
 
-# Vercel's Hobby plan allows a cron job to fire only once a day, which is not
-# enough for a catalogue the pricing page says is refreshed hourly. This runs
-# the same endpoint on GitHub's scheduler instead, which is free and has no
-# frequency limit. Delete this workflow if you move to Vercel Pro and let
-# vercel.json handle it.
+# The crawl runs here, inside the runner, rather than by calling the app.
 #
-# Requires two repository secrets (Settings, Secrets and variables, Actions):
-#   JOPPO_URL     https://your-domain
-#   CRON_SECRET   the same value set in the Vercel environment
+# It used to POST to /api/cron/ingest. That cannot work on the Cloudflare
+# Workers free plan: a Worker gets 10ms of CPU per invocation, and parsing a
+# single job board and upserting its listings is far past that, so every call
+# came back as error 1102 (exceeded resource limits) after a few seconds.
+#
+# A GitHub runner is plain Node with no CPU cap, and it talks to Supabase
+# directly, so the whole source list can be crawled in one pass. It is free on
+# public repositories and well inside the free minutes on private ones.
+#
+# Requires one repository secret (Settings, Secrets and variables, Actions):
+#   DATABASE_URL   the Supabase pooler connection string
 
 on:
   schedule:
     - cron: '17 * * * *'
-  workflow_dispatch: # lets you trigger a crawl by hand from the Actions tab
+  workflow_dispatch: # runs a crawl on demand from the Actions tab
 
 concurrency:
   group: crawl
@@ -22,30 +26,31 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
-      - name: Trigger ingestion
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Crawl
         env:
-          JOPPO_URL: ${{ secrets.JOPPO_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          INGEST_CONCURRENCY: '6'
+          INGEST_USER_AGENT: 'JoppoBot/0.1 (+https://joppo.app/bot)'
         run: |
-          if [ -z "$JOPPO_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "::error::Set the JOPPO_URL and CRON_SECRET repository secrets."
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Set the DATABASE_URL repository secret."
             exit 1
           fi
-
-          # Fail the job on a non-2xx so a broken crawl is visible in the
-          # Actions tab rather than failing silently for weeks.
-          body=$(mktemp)
-          code=$(curl -sS --max-time 120 -o "$body" -w '%{http_code}' \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "$JOPPO_URL/api/cron/ingest")
-
-          echo "HTTP $code"
-          cat "$body"
-          echo
-
-          case "$code" in
-            2*) echo "Crawl completed." ;;
-            *)  echo "::error::Crawl failed with HTTP $code"; exit 1 ;;
-          esac
+          # --stale=7 retires listings a board has stopped returning and purges
+          # the ones that have been retired for a week.
+          npm run ingest -- --stale=7

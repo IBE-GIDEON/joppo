@@ -18,6 +18,7 @@ loadEnv();
 
 // Imported after loadEnv so DATABASE_URL is set before Prisma initialises.
 const { runIngestion, seedSources } = await import('./ingest');
+const { purgeExpiredUsage } = await import('../lib/rate-limit');
 
 const argv = process.argv.slice(2);
 const flag = (name: string): string | undefined => {
@@ -60,6 +61,12 @@ async function main() {
       `${result.sourcesFailed} source(s) failed`,
   );
   if (result.retired) console.log(`  retired ${result.retired} stale listings`);
+
+  // Rate limiting writes a row per caller per hour. The crawl is the scheduled
+  // job that runs often enough to be the natural place to sweep them, and it is
+  // no longer reached through /api/cron/ingest, which used to do this.
+  const usagePurged = await purgeExpiredUsage();
+  if (usagePurged) console.log(`  purged ${usagePurged} expired rate-limit rows`);
   console.log(
     `  catalogue: ${result.totals.active} active listings, ${result.totals.companies} organisations`,
   );
