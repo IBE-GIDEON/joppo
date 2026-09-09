@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "prisma generate && next build",
+    "build": "opennextjs-cloudflare build",
     "start": "next start -p 3100",
     "lint": "next lint",
     "db:push": "prisma db push",
@@ -18,7 +18,8 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "db:deploy": "prisma db push --skip-generate && node scripts/apply-indexes.mjs"
+    "db:deploy": "prisma db push --skip-generate && node scripts/apply-indexes.mjs",
+    "build:next": "prisma generate && next build"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "1.0.7",

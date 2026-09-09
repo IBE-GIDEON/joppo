@@ -278,22 +278,19 @@ npm run cf:deploy           # build and ship
 
 ### From Cloudflare's own CI (Workers Builds)
 
-Connect the GitHub repository, then set these two commands in the project's
-build settings. The defaults will not work:
+Connect the GitHub repository. The default build and deploy commands work as
+they are; nothing needs changing.
 
-| Setting | Value |
-| --- | --- |
-| Build command | `npm run cf:build` |
-| Deploy command | `npx wrangler deploy` |
+`npm run build` is the Cloudflare build. That is only possible because
+`open-next.config.ts` sets `buildCommand`, pointing OpenNext at
+`next build` directly instead of at `npm run build`. Without that override the
+two would call each other forever, which is why a plain Next build used to be
+required and why a deploy could silently produce no Worker.
 
-`npm run build` alone is not enough. It produces a Next.js build, but
-Cloudflare needs the OpenNext bundle in `.open-next/`, and wrangler fails with
-"Could not find compiled Open Next config" if that step was skipped.
+Use `npm run build:next` when you want only the Next.js build, without the
+Worker bundle.
 
-`opennextjs-cloudflare build` runs `npm run build` itself, which is why `build`
-must stay the plain Next build rather than calling the Cloudflare step.
-
-Also add `DATABASE_URL` as a **build-time** variable, not only a secret. The
+Add `DATABASE_URL` as a **build-time** variable, not only a secret. The
 landing page is prerendered at build and reads the live listing counts; without
 it the page ships showing zero until the first revalidation.
 
