@@ -51,11 +51,12 @@ jobs:
             echo "::error::Set the DATABASE_URL repository secret."
             exit 1
           fi
-          # A slice per run, stalest first. A full pass over every source takes
-          # about fifty minutes, so crawling the lot on an hourly trigger would
-          # leave runs overlapping almost continuously. Twenty-five sources
-          # finishes well inside the hour and covers all of them in three.
+          # A slice per run, stalest first, under a deadline. Source size varies
+          # enormously -- two large boards took eleven minutes between them --
+          # so a source count alone cannot bound a run. --minutes=22 stops it
+          # cleanly inside the job timeout, and whatever it did not reach is
+          # simply the stalest thing next hour.
           #
           # --stale=7 retires listings a board has stopped returning and purges
           # the ones that have been retired for a week.
-          npm run ingest -- --stale=7 --limit=25
+          npm run ingest -- --stale=7 --limit=25 --minutes=22

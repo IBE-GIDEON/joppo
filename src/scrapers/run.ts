@@ -7,6 +7,7 @@
  *   npm run ingest -- --kind=greenhouse one platform
  *   npm run ingest -- --limit=10        the ten stalest sources
  *   npm run ingest -- --stale=14        also retire listings unseen for 14 days
+ *   npm run ingest -- --minutes=25      stop cleanly after twenty-five minutes
  *
  * In production the same engine runs hourly through /api/cron/ingest, so this
  * is for local work and one-off backfills.
@@ -51,10 +52,18 @@ async function main() {
     console.log(`  seeded ${n} sources`);
   }
 
+  // A source can take anywhere from seconds to several minutes depending on how
+  // large its board is, so a run's length cannot be predicted from the number of
+  // sources alone. --minutes stops the run cleanly at a deadline, finishing the
+  // source in hand, which degrades to fewer sources this pass rather than to a
+  // scheduler killing the job halfway through one.
+  const minutes = flag('minutes') ? Number(flag('minutes')) : undefined;
+
   const result = await runIngestion({
     only: flag('only'),
     kind: flag('kind'),
     limit: flag('limit') ? Number(flag('limit')) : undefined,
+    timeBudgetMs: minutes && minutes > 0 ? minutes * 60_000 : undefined,
     staleDays: flag('stale') ? Number(flag('stale')) : 0,
     onLog: (line) => console.log(line),
   });
