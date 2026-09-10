@@ -16,6 +16,43 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 loadEnv();
+widenPool();
+
+/**
+ * The app runs on Workers, where every request builds its own client, so
+ * DATABASE_URL carries connection_limit=1. That is right there and badly wrong
+ * here: this is one long-lived process, and persisting a listing costs two or
+ * three round trips that all queue behind a single connection. Measured from a
+ * home connection to eu-central-1 that worked out at roughly two thirds of a
+ * second per listing, which is why a run of a few large boards took eleven
+ * minutes and blew past its deadline.
+ *
+ * Supabase's transaction pooler is happy to hand out more, and only the CLI
+ * takes this path, so the Worker is unaffected.
+ */
+function widenPool() {
+  const url = process.env.DATABASE_URL;
+  if (!url) return;
+  try {
+    const parsed = new URL(url);
+    // Enough connections for every query the run can have in flight at once:
+    // sources crawled in parallel, times listings written in parallel within
+    // each. Sized rather than guessed, so nothing queues behind the pool.
+    const sources = positiveIntEnv(process.env.INGEST_CONCURRENCY, 4);
+    const perSource = positiveIntEnv(process.env.INGEST_PERSIST, 8);
+    const wanted = Math.min(30, Math.max(5, sources * perSource));
+    parsed.searchParams.set('connection_limit', String(wanted));
+    parsed.searchParams.set('pool_timeout', '30');
+    process.env.DATABASE_URL = parsed.toString();
+  } catch {
+    // An unparseable URL is Prisma's problem to report, not ours to crash on.
+  }
+}
+
+function positiveIntEnv(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
 
 const argv = process.argv.slice(2);
 const flag = (name: string): string | undefined => {

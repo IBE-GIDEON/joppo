@@ -57,16 +57,33 @@ export interface IngestResult {
   perSource: { source: string; count: number; error?: string }[];
 }
 
-const companyCache = new Map<string, string>();
+// Caches the in-flight promise, not the finished id. Listings are persisted in
+// parallel and every listing on a board shares one company, so caching only the
+// result would let a dozen identical upserts race before the first one landed.
+const companyCache = new Map<string, Promise<string | null>>();
 
 async function upsertCompany(raw: RawListing): Promise<string | null> {
   const slug = raw.companySlug;
   const name = raw.companyName;
   if (!slug || !name) return null;
 
-  const cached = companyCache.get(slug);
-  if (cached) return cached;
+  const inFlight = companyCache.get(slug);
+  if (inFlight) return inFlight;
 
+  const work = upsertCompanyNow(raw, slug, name).catch((err) => {
+    // Do not cache a failure: the next listing should be free to try again.
+    companyCache.delete(slug);
+    throw err;
+  });
+  companyCache.set(slug, work);
+  return work;
+}
+
+async function upsertCompanyNow(
+  raw: RawListing,
+  slug: string,
+  name: string,
+): Promise<string | null> {
   const company = await prisma.company.upsert({
     where: { slug },
     create: {
@@ -85,7 +102,6 @@ async function upsertCompany(raw: RawListing): Promise<string | null> {
     select: { id: true },
   });
 
-  companyCache.set(slug, company.id);
   return company.id;
 }
 
@@ -197,6 +213,9 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     onLog = () => {},
   } = options;
 
+  const deadline = timeBudgetMs ? started + timeBudgetMs : 0;
+  const persistConcurrency = positiveInt(process.env.INGEST_PERSIST, 8);
+
   // A fresh deployment has tables but no crawl list. Seed it on the first run
   // so the catalogue fills itself without anyone running a command by hand.
   let seeded = 0;
@@ -251,20 +270,35 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
         label,
       );
 
+      // Listings are written in parallel. Each costs two or three round trips
+      // and they used to run strictly one after another, so a large board spent
+      // minutes on pure latency: Databricks returns 873 listings in under three
+      // seconds and then took roughly nine minutes to store them.
       let saved = 0;
-      for (const raw of raws) {
+      let unreached = 0;
+
+      await pool(raws, persistConcurrency, async (raw) => {
+        // The deadline is honoured here too. Checking only between sources let
+        // a single board run long past it, which is how a scheduled run reached
+        // thirty minutes against a twenty-two minute budget and was killed.
+        if (deadline && Date.now() > deadline) {
+          unreached++;
+          return;
+        }
         try {
           if (await persist(raw, source.id)) saved++;
         } catch {
           // One malformed record must not lose the rest of the batch.
         }
-      }
+      });
 
       // Anything on this board that we did not just see has been taken down.
       // Scoped to this board and this run, so a board we have not visited
       // recently never has its listings aged out by mistake. Guarded on a
-      // non-empty result, so a transient empty response cannot wipe a board.
-      if (saved > 0) {
+      // non-empty result, so a transient empty response cannot wipe a board,
+      // and on having read the board in full: retiring off a pass the deadline
+      // cut short would kill every listing it never reached.
+      if (saved > 0 && unreached === 0) {
         const gone = await prisma.listing.updateMany({
           where: { sourceId: source.id, active: true, fetchedAt: { lt: new Date(runStart) } },
           data: { active: false, retiredAt: new Date() },
@@ -275,8 +309,15 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
 
       listingsUpserted += saved;
       sourcesRun++;
-      perSource.push({ source: label, count: saved });
-      onLog(`  ok  ${label.padEnd(34)} ${String(saved).padStart(5)}`);
+      perSource.push({
+        source: label,
+        count: saved,
+        ...(unreached ? { error: `deadline reached, ${unreached} not stored` } : {}),
+      });
+      onLog(
+        `  ok  ${label.padEnd(34)} ${String(saved).padStart(5)}` +
+          (unreached ? `  (${unreached} left for next run)` : ''),
+      );
 
       await prisma.source.update({
         where: { id: source.id },

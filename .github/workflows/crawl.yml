@@ -51,12 +51,12 @@ jobs:
             echo "::error::Set the DATABASE_URL repository secret."
             exit 1
           fi
-          # A slice per run, stalest first, under a deadline. Source size varies
-          # enormously -- two large boards took eleven minutes between them --
-          # so a source count alone cannot bound a run. --minutes=22 stops it
-          # cleanly inside the job timeout, and whatever it did not reach is
-          # simply the stalest thing next hour.
+          # Stalest first, bounded by time rather than by a source count. The
+          # deadline is now honoured inside a board as well as between boards,
+          # and a board the deadline cuts short is never retired from, so a run
+          # simply stores what it can and leaves the rest as the stalest thing
+          # next time. No --limit: twenty-two minutes is the real budget.
           #
           # --stale=7 retires listings a board has stopped returning and purges
           # the ones that have been retired for a week.
-          npm run ingest -- --stale=7 --limit=25 --minutes=22
+          npm run ingest -- --stale=7 --minutes=22
