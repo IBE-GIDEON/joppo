@@ -141,6 +141,8 @@ export async function collectMetrics(): Promise<Metrics> {
     rosterRows,
     troubleRows,
     snapshotRows,
+    expiringRows,
+    busiestRows,
   ] = await Promise.all([
     prisma.$queryRawUnsafe<Row[]>(`
       SELECT COUNT(*)::int AS total,
@@ -222,20 +224,27 @@ export async function collectMetrics(): Promise<Metrics> {
       FROM "Usage"
       WHERE "key" LIKE 'q:%' AND "window" = to_char(now(), 'YYYY-MM')`),
 
+    // The page of people is chosen before anything is joined to it. Grouping
+    // first and taking 300 at the end meant aggregating every user against
+    // every payment on each page load, which is fine at a few thousand people
+    // and quietly quadratic well before a hundred thousand.
     prisma.$queryRawUnsafe<Row[]>(`
+      WITH page AS (
+        SELECT id, email, name, "createdAt"
+        FROM "User" ORDER BY "createdAt" DESC LIMIT 300
+      )
       SELECT u.id, u.email, u.name, u."createdAt" AS joined,
              pr."completedAt" AS onboarded,
              s.plan, s.status AS sub_status, s."currentPeriodEnd" AS expires,
              COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'success'), 0)::int AS paid_minor,
              COUNT(p.id) FILTER (WHERE p.status = 'success')::int AS payments
-      FROM "User" u
+      FROM page u
       LEFT JOIN "Profile" pr ON pr."userId" = u.id
       LEFT JOIN "Subscription" s ON s."userId" = u.id
       LEFT JOIN "Payment" p ON p."userId" = u.id
       GROUP BY u.id, u.email, u.name, u."createdAt", pr."completedAt",
                s.plan, s.status, s."currentPeriodEnd"
-      ORDER BY u."createdAt" DESC
-      LIMIT 300`),
+      ORDER BY u."createdAt" DESC`),
 
     prisma.$queryRawUnsafe<Row[]>(`
       SELECT p.reference, u.email, p.status, p.amount::int AS minor, p."createdAt" AS at
@@ -249,6 +258,29 @@ export async function collectMetrics(): Promise<Metrics> {
       SELECT "takenAt", "dbBytes"::float8 AS bytes, listings::int AS listings
       FROM "Snapshot" WHERE "takenAt" >= now() - INTERVAL '30 days'
       ORDER BY "takenAt" ASC`),
+
+    // Asked of the whole table, not of the visible page of people. Deriving
+    // these from the newest 300 meant an older customer about to lapse, or the
+    // heaviest searcher on the service, silently stopped being listed once the
+    // 301st person signed up.
+    prisma.$queryRawUnsafe<Row[]>(`
+      SELECT u.id, u.email, u.name, u."createdAt" AS joined,
+             s.plan, s.status AS sub_status, s."currentPeriodEnd" AS expires
+      FROM "Subscription" s JOIN "User" u ON u.id = s."userId"
+      WHERE s.status = 'active'
+        AND s."currentPeriodEnd" > now()
+        AND s."currentPeriodEnd" < now() + INTERVAL '7 days'
+      ORDER BY s."currentPeriodEnd" ASC LIMIT 25`),
+
+    prisma.$queryRawUnsafe<Row[]>(`
+      SELECT u.id, u.email, u.name, u."createdAt" AS joined,
+             s.plan, s.status AS sub_status, s."currentPeriodEnd" AS expires,
+             usg."count"::int AS searches
+      FROM "Usage" usg
+      JOIN "User" u ON u.id = REPLACE(usg."key", 'q:', '')
+      LEFT JOIN "Subscription" s ON s."userId" = u.id
+      WHERE usg."key" LIKE 'q:%' AND usg."window" = to_char(now(), 'YYYY-MM')
+      ORDER BY usg."count" DESC LIMIT 10`),
   ]);
 
   const dbLatencyMs = Date.now() - startedAt;
@@ -257,6 +289,25 @@ export async function collectMetrics(): Promise<Metrics> {
   for (const row of usageRows) {
     searchesByUser.set(String(row.user_id), num(row.count));
   }
+
+  const toPerson = (r: Row): PersonRow => {
+    const plan = (r.plan as string | null) ?? null;
+    const id = String(r.id);
+    return {
+      id,
+      email: (r.email as string | null) ?? null,
+      name: (r.name as string | null) ?? null,
+      joined: new Date(r.joined as string),
+      onboarded: Boolean(r.onboarded),
+      plan,
+      subStatus: (r.sub_status as string | null) ?? null,
+      expires: date(r.expires),
+      paidMinor: num(r.paid_minor),
+      payments: num(r.payments),
+      searches: r.searches !== undefined ? num(r.searches) : searchesByUser.get(id) ?? 0,
+      quota: plan && plan in PLAN_SEARCH_QUOTA ? PLAN_SEARCH_QUOTA[plan as PlanId] : 0,
+    };
+  };
 
   const roster: PersonRow[] = rosterRows.map((r) => {
     const plan = (r.plan as string | null) ?? null;
@@ -317,15 +368,7 @@ export async function collectMetrics(): Promise<Metrics> {
       ? Math.max(0, Math.round((SUPABASE_FREE_BYTES - dbBytes) / bytesPerDay))
       : null;
 
-  const nowMs = Date.now();
-  const expiringSoon = roster
-    .filter(
-      (r) =>
-        r.expires !== null &&
-        r.expires.getTime() > nowMs &&
-        r.expires.getTime() < nowMs + 7 * 86_400_000,
-    )
-    .sort((a, b) => (a.expires!.getTime() - b.expires!.getTime()));
+  const expiringSoon = expiringRows.map(toPerson);
 
   return {
     generatedAt: new Date(),
@@ -375,7 +418,7 @@ export async function collectMetrics(): Promise<Metrics> {
     usage: {
       searchesThisMonth: [...searchesByUser.values()].reduce((a, b) => a + b, 0),
       activeSearchers: searchesByUser.size,
-      busiest: [...roster].sort((a, b) => b.searches - a.searches).slice(0, 10),
+      busiest: busiestRows.map(toPerson),
     },
 
     catalogue: {

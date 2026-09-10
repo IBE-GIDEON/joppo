@@ -35,6 +35,8 @@ model User {
   saved         SavedListing[]
   savedSearches SavedSearch[]
   payments      Payment[]
+
+  @@index([createdAt])
 }
 
 model Account {
@@ -107,6 +109,9 @@ model Subscription {
   updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, currentPeriodEnd])
+  @@index([currentPeriodEnd])
 }
 
 model Payment {
@@ -121,6 +126,10 @@ model Payment {
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------- catalogue
