@@ -154,6 +154,35 @@ export async function seedSources(): Promise<number> {
   return SOURCE_SEEDS.length;
 }
 
+/**
+ * A single source must not be able to consume a whole run.
+ *
+ * The run deadline was only ever checked between sources, and an adapter walks
+ * a board listing by listing: one big board can therefore fetch for many
+ * minutes on its own, sailing past the deadline and letting a scheduler kill
+ * the job mid-flight. This bounds the fetch itself.
+ *
+ * Only the fetch is bounded, deliberately. Retirement happens after the
+ * adapter has returned everything it found, so a timeout here throws before
+ * any listing is written or aged out; a half-read board can never retire the
+ * half it did not reach. The source is stamped with the error like any other
+ * failure, so it shows up as failing rather than silently going stale.
+ */
+const SOURCE_TIMEOUT_MS = 5 * 60_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`${label} exceeded ${Math.round(ms / 1000)}s and was abandoned`)),
+        ms,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 export async function runIngestion(options: IngestOptions = {}): Promise<IngestResult> {
   const started = Date.now();
   const runStart = Date.now();
@@ -207,11 +236,20 @@ export async function runIngestion(options: IngestOptions = {}): Promise<IngestR
     }
 
     try {
-      const raws = await adapter({
-        token: source.token,
-        label: source.label,
-        category: source.category,
-      });
+      // Whatever is left of the run budget, capped so no one source hogs it.
+      const remaining = timeBudgetMs
+        ? Math.max(1_000, timeBudgetMs - (Date.now() - started))
+        : SOURCE_TIMEOUT_MS;
+
+      const raws = await withTimeout(
+        adapter({
+          token: source.token,
+          label: source.label,
+          category: source.category,
+        }),
+        Math.min(remaining, SOURCE_TIMEOUT_MS),
+        label,
+      );
 
       let saved = 0;
       for (const raw of raws) {
